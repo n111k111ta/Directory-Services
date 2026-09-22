@@ -21,7 +21,7 @@ public readonly record struct EntityLifeTime
     }
     public static EntityLifeTime Create(DateTime createdAt, DateTime? deletedAt, DateTime updatedAt)
     {
-    if (updatedAt < createdAt)
+        if (updatedAt < createdAt)
         {
             throw new ArgumentException("Дата обновления должна быть позже даты создания!");
         }
@@ -50,4 +50,7 @@ public readonly record struct EntityLifeTime
     {
         return DeletedAt != null;
     }
+
 }
+
+
