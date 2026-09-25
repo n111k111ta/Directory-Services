@@ -26,5 +26,40 @@ public class Location
         }
         return new Location(id, name, address, timezone, entityLifeTime1);
     }
-
+    private void CheckArhiveLocation()
+    {
+        if (EntityLifeTime.IsDeleted())
+        {
+            throw new Exception("Архивный объект не может быть изменен!");
+        }
+    }
+    public void UpdateLocation(UpdateLocationContext context)
+    {
+        bool isUpdate = false;
+        CheckArhiveLocation();
+        if (context.Timezone != null)
+        {
+            Timezone = context.Timezone;
+            isUpdate = true;
+        }
+        if (context.Name != null)
+        {
+            Name = context.Name;
+            isUpdate = true;
+        }
+        if (context.Address != null)
+        {
+            Address = context.Address;
+            isUpdate = true;
+        }
+        if (isUpdate)
+        {
+            EntityLifeTime = EntityLifeTime.Update();
+        }
+        else
+        {
+            throw new Exception("Необходимо обновить хотя бы одно поле!");
+        }
+    }
 }
+public record UpdateLocationContext(ianaTimezone? Timezone, NotEmptyString? Name, NotEmptyString? Address);

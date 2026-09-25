@@ -35,5 +35,4 @@ public class Department
         }
         return new Department(id, name, identifier, parentId, path, depth, entityLifeTime1);
     }
-
 }

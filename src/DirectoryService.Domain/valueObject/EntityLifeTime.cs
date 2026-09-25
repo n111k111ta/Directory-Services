@@ -50,6 +50,11 @@ public readonly record struct EntityLifeTime
     {
         return DeletedAt != null;
     }
+    public EntityLifeTime Update()
+    {
+        DateTime dateTime = DateTime.UtcNow;
+        return new EntityLifeTime(CreatedAt, DeletedAt, dateTime);
+    }
 
 }
 
