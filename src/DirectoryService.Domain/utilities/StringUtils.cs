@@ -21,4 +21,14 @@ public record NotEmptyString
         }
         return new NotEmptyString(notEmptyString);
     }
+    public static NotEmptyString Create(string notEmptyString)
+    {
+        notEmptyString = notEmptyString.Trim();
+        if (string.IsNullOrWhiteSpace(notEmptyString))
+        {
+            throw new ArgumentException("Строка не может быть пустой!");
+        }
+
+        return new NotEmptyString(notEmptyString);
+    }
 }

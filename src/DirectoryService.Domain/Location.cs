@@ -5,12 +5,17 @@ namespace DirectoryService.Domain;
 
 public class Location
 {
-    public Guid Id { get; private set; }
+    public LocationId Id { get; private set; }
     public NotEmptyString Name { get; private set; }
     public NotEmptyString Address { get; private set; }
     public ianaTimezone Timezone { get; private set; }
     public EntityLifeTime EntityLifeTime { get; private set; }
-    private Location(Guid id, NotEmptyString name, NotEmptyString address, ianaTimezone timezone, EntityLifeTime entityLifeTime1)
+    private Location(
+        LocationId id,
+        NotEmptyString name,
+        NotEmptyString address,
+        ianaTimezone timezone,
+        EntityLifeTime entityLifeTime1)
     {
         Id = id;
         Name = name;
@@ -18,15 +23,20 @@ public class Location
         Timezone = timezone;
         EntityLifeTime = entityLifeTime1;
     }
-    public static Location Create(Guid id, NotEmptyString name, NotEmptyString address, ianaTimezone timezone, EntityLifeTime entityLifeTime1)
+    public static Location Create(
+        LocationId id,
+        NotEmptyString name,
+        NotEmptyString address,
+        ianaTimezone timezone,
+        EntityLifeTime entityLifeTime1)
     {
-        if (id == Guid.Empty)
+        if (id.Id == Guid.Empty)
         {
             throw new ArgumentException("Пустой идентификатор!");
         }
         return new Location(id, name, address, timezone, entityLifeTime1);
     }
-    private void CheckArhiveLocation()
+    public void CheckArhiveLocation()
     {
         if (EntityLifeTime.IsDeleted())
         {
@@ -54,12 +64,37 @@ public class Location
         }
         if (isUpdate)
         {
-            EntityLifeTime = EntityLifeTime.Update();
+            UpdateLastTimeChange();
         }
         else
         {
             throw new Exception("Необходимо обновить хотя бы одно поле!");
         }
     }
+
+    public void UpdateLastTimeChange()
+    {
+        EntityLifeTime = EntityLifeTime.Update();
+    }
 }
 public record UpdateLocationContext(ianaTimezone? Timezone, NotEmptyString? Name, NotEmptyString? Address);
+
+public readonly record struct LocationId
+{
+    public Guid Id { get; }
+
+    private LocationId(Guid id)
+    {
+        Id = id;
+    }
+
+    public LocationId()
+    {
+        Id = Guid.NewGuid();
+    }
+
+    public static LocationId Create(Guid id)
+    {
+        return new LocationId(id);
+    }
+}
