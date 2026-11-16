@@ -74,6 +74,7 @@ public class Location
 
     public void UpdateLastTimeChange()
     {
+        CheckArhiveLocation();
         EntityLifeTime = EntityLifeTime.Update();
     }
 }

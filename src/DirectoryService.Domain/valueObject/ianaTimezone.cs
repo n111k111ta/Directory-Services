@@ -1,4 +1,3 @@
-using System.Text.RegularExpressions;
 using DirectoryService.Domain.utilities;
 
 namespace DirectoryService.Domain.valueObject;
@@ -10,12 +9,12 @@ public record ianaTimezone
     {
         Value = notEmpty;
     }
-    private static Regex timezoneTemplateShablone = new Regex(@"(\w+)\b[//](\w+)\b", RegexOptions.Compiled);
     public static ianaTimezone Create(NotEmptyString notEmptyString)
     {
-        if (timezoneTemplateShablone.IsMatch(notEmptyString.Value) != true)
+        string[] parts = notEmptyString.Value.Split('/');
+        if (parts.Length < 2 || parts.Any(part => string.IsNullOrWhiteSpace(part)))
         {
-            throw new ArgumentException("Неверный шаблон!");
+            throw new ArgumentException("Неверный формат временной зоны!");
         }
         return new ianaTimezone(notEmptyString);
     }

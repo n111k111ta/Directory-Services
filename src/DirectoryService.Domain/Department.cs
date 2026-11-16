@@ -3,22 +3,6 @@ using DirectoryService.Domain.valueObject;
 
 namespace DirectoryService.Domain;
 
-public interface ILifeTimeAble
-{
-    EntityLifeTime EntityLifeTime { get; set; }
-}
-
-public static class LifeTimeAbleExtensions
-{
-    extension(ILifeTimeAble lifeTimeAble)
-    {
-        public void UpdateLastTimeChanged()
-        {
-            EntityLifeTime lifetime = lifeTimeAble.EntityLifeTime.Update();
-        }
-    }
-}
-
 public record DepartmentPath
 {
     public NotEmptyString Path { get; }
@@ -34,8 +18,9 @@ public record DepartmentPath
 
 }
 
-public class Department : ILifeTimeAble
+public class Department
 {
+    private readonly List<Department> _children = [];
     private readonly List<DepartmentLocation> _locations = [];
     private readonly List<DepartmentPosition> _positions = [];
     public DepartmentId Id { get; private set; }
@@ -44,28 +29,63 @@ public class Department : ILifeTimeAble
     public DepartmentId? ParentId { get; private set; }
     public DepartmentPath Path { get; private set; }
     public short Depth { get; private set; }
-    public EntityLifeTime EntityLifeTime { get; set; }
-    public IReadOnlyCollection<DepartmentLocation> Locations => _locations;
-    public IReadOnlyCollection<DepartmentPosition> Positions => _positions;
+    public EntityLifeTime EntityLifeTime { get; private set; }
+    public IReadOnlyCollection<DepartmentLocation> Locations => _locations.AsReadOnly();
+    public IReadOnlyCollection<DepartmentPosition> Positions => _positions.AsReadOnly();
+    public IReadOnlyCollection<Department> Children => _children.AsReadOnly();
 
     public void AddChilde(Department department)
     {
         CheckArhiveDepartment();
         department.CheckArhiveDepartment();
+        if (Id == department.Id || department.ContainsChild(Id))
+        {
+            throw new InvalidOperationException("Нельзя присоединить подразделение к себе или своему потомку!");
+        }
         if (department.ParentId != null)
         {
             throw new InvalidOperationException("Подразделение уже добавлено в родительское подразделение!");
         }
-        if (this.Path.Path.Value.Contains(department.Identifier.Value))
+        if (_children.Any(x => x.Id == department.Id))
         {
             throw new InvalidOperationException("Подразделение уже добавлено в родительское подразделение!");
         }
 
-        ParentId = department.Id;
-        Path = DepartmentPath.Create(this.Path.Path, department.Identifier);
-        Depth++;
-        department.UpdateLastTimeChanged();
+        department.CheckTree();
+        department.ParentId = Id;
+        department.UpdatePath(Path, Depth);
+        _children.Add(department);
         this.UpdateLastTimeChanged();
+    }
+
+    private bool ContainsChild(DepartmentId id)
+    {
+        return _children.Any(x => x.Id == id || x.ContainsChild(id));
+    }
+
+    private void CheckTree()
+    {
+        CheckArhiveDepartment();
+        foreach (var child in _children)
+        {
+            child.CheckTree();
+        }
+    }
+
+    private void UpdatePath(DepartmentPath parentPath, short parentDepth)
+    {
+        Path = DepartmentPath.Create(parentPath.Path, Identifier);
+        Depth = (short)(parentDepth + 1);
+        UpdateLastTimeChanged();
+        foreach (var child in _children)
+        {
+            child.UpdatePath(Path, Depth);
+        }
+    }
+
+    private void UpdateLastTimeChanged()
+    {
+        EntityLifeTime = EntityLifeTime.Update();
     }
     private Department(
         DepartmentId id,
@@ -84,14 +104,15 @@ public class Department : ILifeTimeAble
         Depth = depth;
         EntityLifeTime = entityLifeTime1;
     }
-    public static Department Create(
+    public static async Task<Department> Create(
         DepartmentId id,
         NotEmptyString name,
         NotEmptyString identifier,
-        DepartmentId parentId,
+        DepartmentId? parentId,
         DepartmentPath path,
         short depth,
-        EntityLifeTime entityLifeTime1)
+        EntityLifeTime entityLifeTime1,
+        IDepartmentNameChecker checker)
     {
         if (id.Id == Guid.Empty)
         {
@@ -101,6 +122,14 @@ public class Department : ILifeTimeAble
         if (depth < 0)
         {
             throw new ArgumentException("Глубина не может быть отрицательной!");
+        }
+        if (parentId == id)
+        {
+            throw new InvalidOperationException("Подразделение не может быть своим родителем!");
+        }
+        if (!await checker.IsUnique(name))
+        {
+            throw new InvalidOperationException("Department name is not unique");
         }
         return new Department(id, name, identifier, parentId, path, depth, entityLifeTime1);
     }
@@ -118,9 +147,14 @@ public class Department : ILifeTimeAble
         bool isUpdate = false;
         CheckArhiveDepartment();
 
+        if (context.Identifier != null)
+        {
+            CheckTree();
+        }
+
         if (context.Name != null)
         {
-            if (!await checker.IsUnique(context.Name))
+            if (context.Name != Name && !await checker.IsUnique(context.Name))
             {
                 throw new InvalidOperationException("Department name is not unique");
             }
@@ -132,6 +166,13 @@ public class Department : ILifeTimeAble
         if (context.Identifier != null)
         {
             Identifier = context.Identifier;
+            int separator = Path.Path.Value.LastIndexOf('.');
+            string parentPath = separator < 0 ? "" : Path.Path.Value[..(separator + 1)];
+            Path = new DepartmentPath(NotEmptyString.Create(parentPath + Identifier.Value));
+            foreach (var child in _children)
+            {
+                child.UpdatePath(Path, Depth);
+            }
             isUpdate = true;
         }
 
@@ -150,7 +191,7 @@ public class Department : ILifeTimeAble
         CheckArhiveDepartment();
         location.CheckArhiveLocation();
 
-        if (_locations.Any(x => x.LocationId == location.Id))
+        if (_locations.Any(x => x.LocationId == location.Id || x.Location.Address == location.Address))
         {
             throw new InvalidOperationException("Локация уже добавлена в подразделение!");
         }
@@ -168,7 +209,7 @@ public class Department : ILifeTimeAble
         CheckArhiveDepartment();
         position.CheckArchievePosition();
 
-        if (_positions.Any(x => x.PositionId == position.Id))
+        if (_positions.Any(x => x.PositionId == position.Id || x.Position.Name == position.Name))
         {
             throw new InvalidOperationException("Должность уже добавлена в подразделение!");
         }
@@ -210,21 +251,25 @@ public readonly record struct DepartmentId
 
 public sealed class DepartmentLocation
 {
+    public Location Location { get; }
     public DepartmentId DepartmentId { get; }
     public LocationId LocationId { get; }
 
     public DepartmentLocation(Department department, Location location)
     {
+        Location = location;
         DepartmentId = department.Id;
         LocationId = location.Id;
     }
 }
 public sealed class DepartmentPosition
 {
+    public Position Position { get; }
     public DepartmentId DepartmentId { get; }
     public PositionId PositionId { get; }
     public DepartmentPosition(Department department, Position position)
     {
+        Position = position;
         DepartmentId = department.Id;
         PositionId = position.Id;
     }

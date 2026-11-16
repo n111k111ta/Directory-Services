@@ -23,15 +23,20 @@ public class Position
         EntityLifeTime = entityLifeTime;
     }
 
-    public static Position Create(
+    public static async Task<Position> Create(
         NotEmptyString name,
         NotEmptyString description,
         PositionId id,
-        EntityLifeTime entityLifeTime1)
+        EntityLifeTime entityLifeTime1,
+        IPositonNameChecker checker)
     {
         if (id.Id == Guid.Empty)
         {
             throw new ArgumentException("Пустой идентификатор!");
+        }
+        if (!await checker.IsUnique(name))
+        {
+            throw new InvalidOperationException("Position name is not unique");
         }
         return new Position(name, description, id, entityLifeTime1);
     }
@@ -40,7 +45,7 @@ public class Position
     {
         CheckArhiveLocation();
 
-        if (!await checker.IsUnique(newName))
+        if (newName != Name && !await checker.IsUnique(newName))
         {
             throw new InvalidOperationException("Position name is not unique");
         }
@@ -55,18 +60,18 @@ public class Position
             throw new Exception("Архивный объект не может быть изменен!");
         }
     }
-    public void Update(UpdateContext context)
+    public async Task Update(UpdateContext context, IPositonNameChecker checker)
     {
-        bool isUpdate = true;
+        bool isUpdate = false;
         CheckArhiveLocation();
+        if (context.Name != null)
+        {
+            await ChangeName(context.Name, checker);
+            isUpdate = true;
+        }
         if (context.Description != null)
         {
             Description = context.Description;
-            isUpdate = true;
-        }
-        if (context.Name != null)
-        {
-            Name = context.Name;
             isUpdate = true;
         }
         if (isUpdate)
